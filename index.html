@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Schattenplaner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#182420;
+    --surface:#22322b;
+    --surface-alt:#2b3d34;
+    --surface-raised:#324a3f;
+    --text:#f1ede1;
+    --text-dim:#a7b7ac;
+    --text-faint:#748076;
+    --shade:#6fae7c;
+    --shade-dim:#3c5844;
+    --sun:#e8a33d;
+    --sun-dim:#5c4726;
+    --warn:#d1573f;
+    --border:#3c4f44;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:60px;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:20px 16px 40px;}
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+    padding-bottom:18px;
+    border-bottom:1px solid var(--border);
+    margin-bottom:20px;
+  }
+  .header-controls{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    gap:8px;
+  }
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:28px;
+    letter-spacing:-0.01em;
+    margin:0;
+    line-height:1.05;
+  }
+  .subtitle{color:var(--text-dim);font-size:13px;margin-top:4px;}
+
+  select, input[type=number], input[type=text]{
+    background:var(--surface-alt);
+    border:1px solid var(--border);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:15px;
+    padding:9px 10px;
+    border-radius:8px;
+  }
+  select#monthSelect{font-weight:600;min-width:120px;}
+
+  .lang-toggle{
+    display:flex;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .lang-toggle button{
+    background:transparent;
+    border:none;
+    color:var(--text-dim);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    font-weight:600;
+    padding:6px 10px;
+    cursor:pointer;
+  }
+  .lang-toggle button.active{
+    background:var(--surface-raised);
+    color:var(--text);
+  }
+
+  nav.tabs{
+    display:flex;
+    gap:6px;
+    margin-bottom:22px;
+    background:var(--surface);
+    padding:4px;
+    border-radius:10px;
+  }
+  nav.tabs button{
+    flex:1;
+    padding:10px 8px;
+    background:transparent;
+    border:none;
+    color:var(--text-dim);
+    font-family:'IBM Plex Sans', sans-serif;
+    font-weight:600;
+    font-size:14px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  nav.tabs button.active{background:var(--surface-raised);color:var(--text);}
+
+  section{display:none;}
+  section.active{display:block;}
+
+  .lookup-controls{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    margin-bottom:20px;
+  }
+  .field label{
+    display:block;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--text-faint);
+    margin-bottom:6px;
+  }
+  .field select, .field input{width:100%;}
+
+  .result-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:16px;
+  }
+  .result-card.empty{
+    color:var(--text-dim);
+    text-align:center;
+    padding:32px 20px;
+    font-size:14px;
+  }
+  .result-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;}
+  .result-name{font-family:'Fraunces', serif;font-weight:700;font-size:26px;}
+  .badge{
+    font-size:12px;font-weight:600;padding:5px 10px;border-radius:20px;
+    display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+  }
+  .badge.shade{background:var(--shade-dim);color:var(--shade);}
+  .badge.sun{background:var(--sun-dim);color:var(--sun);}
+  .badge.combo{background:var(--surface-raised);color:var(--text-dim);}
+  .result-meta{color:var(--text-dim);font-size:14px;font-family:'IBM Plex Mono', monospace;}
+  .warn-line{color:var(--sun);font-size:13px;margin-top:10px;font-weight:500;}
+
+  .alt-list{list-style:none;margin:0;padding:0;}
+  .alt-list li{
+    padding:11px 14px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:8px;
+    margin-bottom:8px;
+    font-size:14px;
+  }
+  .alt-row{display:flex;justify-content:space-between;align-items:center;}
+  .alt-list .alt-name{font-weight:600;}
+  .alt-list .alt-cap{color:var(--text-dim);font-family:'IBM Plex Mono', monospace;font-size:13px;}
+  .alt-warn{color:var(--sun);font-size:12px;margin-top:5px;}
+  .section-label{
+    font-size:12px;text-transform:uppercase;letter-spacing:0.06em;
+    color:var(--text-faint);margin:20px 0 10px;
+  }
+
+  .import-box{
+    background:var(--surface);
+    border:1px dashed var(--border);
+    border-radius:var(--radius);
+    padding:28px 20px;
+    text-align:center;
+    margin-bottom:18px;
+  }
+  .import-box p{color:var(--text-dim);font-size:13px;margin:8px 0 16px;}
+  .btn{
+    background:var(--surface-raised);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:9px 14px;
+    border-radius:8px;
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn:hover{background:#3d5747;}
+  .btn.primary{background:var(--shade);color:#12241a;border-color:var(--shade);}
+  #fileInput{display:none;}
+
+  .status-line{font-size:12px;color:var(--text-faint);margin-top:10px;}
+  .status-line.error{color:var(--warn);}
+
+  .data-table-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px 16px;
+    margin-bottom:10px;
+  }
+  .data-table-card .row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;}
+  .data-table-card .row .name{font-weight:600;}
+  .data-table-card .row .val{color:var(--text-dim);font-family:'IBM Plex Mono', monospace;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Schattenplaner</h1>
+      <div class="subtitle" id="subtitleText"></div>
+    </div>
+    <div class="header-controls">
+      <div class="lang-toggle">
+        <button id="langDE" class="active">DE</button>
+        <button id="langEN">EN</button>
+      </div>
+      <select id="monthSelect"></select>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="active" data-tab="lookup" id="tabBtnLookup"></button>
+    <button data-tab="data" id="tabBtnData"></button>
+  </nav>
+
+  <section id="tab-lookup" class="active">
+    <div id="noDataNotice"></div>
+    <div class="lookup-controls">
+      <div class="field">
+        <label id="partySizeLabel" for="partySize"></label>
+        <input type="number" id="partySize" min="1" max="40" value="4">
+      </div>
+      <div class="field">
+        <label id="slotLabel" for="slotSelect"></label>
+        <select id="slotSelect"></select>
+      </div>
+    </div>
+    <div id="resultArea"></div>
+    <div id="altArea"></div>
+  </section>
+
+  <section id="tab-data">
+    <div class="import-box">
+      <div style="font-weight:600;margin-bottom:2px;" id="importTitle"></div>
+      <p id="importDesc"></p>
+      <button class="btn primary" id="importBtn"></button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls">
+      <div class="status-line" id="importStatus"></div>
+      <div class="status-line" id="savedNoteText" style="margin-top:6px;"></div>
+    </div>
+    <div id="dataSummary"></div>
+    <div style="margin-top:16px;">
+      <button class="btn" id="clearDataBtn" style="display:none;"></button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// ---------- i18n ----------
+const STRINGS = {
+  de: {
+    subtitle: "Biergarten Tisch- und Schattenfinder",
+    tabLookup: "Tisch finden",
+    tabData: "Importierte Daten",
+    partySizeLabel: "Personenzahl",
+    slotLabel: "Uhrzeit",
+    noData: "Noch keine Schattendaten geladen. Gehen Sie zu <strong>Importierte Daten</strong> und laden Sie Ihre Excel-Datei hoch.",
+    noFit: (month, n) => `Kein Tisch und keine Kombination in <strong>${month}</strong> bietet zu dieser Zeit Platz für ${n} Personen.`,
+    shaded: "Schatten",
+    sun: "Sonne",
+    combo: "Kombi",
+    seatsLine: (n) => `${n} Plätze`,
+    exactFit: "passt genau",
+    spare: (n) => `${n} Platz/Plätze übrig`,
+    sunUntil: (slot) => `Jetzt Sonne — ab ${slot} vollständig im Schatten`,
+    sunAllBlock: "Für den Rest dieses Service in der Sonne",
+    otherOptions: "Weitere Optionen",
+    importTitle: "Schattenplan importieren",
+    importDesc: "Excel-Datei hochladen (Tabellenblätter „Schattenplan“ und „Tischkombinationen“). Dies ersetzt alle aktuell geladenen Daten.",
+    chooseFile: "Datei auswählen (.xlsx)",
+    reading: "Datei wird gelesen...",
+    importedSummary: (mo,tb,co) => `${mo} Monatsplan(e), ${tb} Tischzeilen, ${co} Kombination(en) importiert.`,
+    skippedNote: (t,c) => ` (${t} Tischzeile(n) und ${c} Kombinationszeile(n) übersprungen — fehlende/ungültige Daten.)`,
+    importError: (msg) => `Datei konnte nicht gelesen werden: ${msg}`,
+    headerNotFound: "Die Kopfzeile „Month/Monat“ und „Table/Tisch“ wurde im Schattenplan-Blatt nicht gefunden.",
+    tablesCount: (n) => `${n} Tisch(e)`,
+    shadedSlots: (a,b) => `Schatten bei ${a}/${b} Zeiten`,
+    combinationsCount: (n) => `Kombinationen — ${n}`,
+    noDataShort: "Keine Daten geladen",
+    loadedFromSave: (when) => `Gespeicherte Daten geladen (importiert am ${when}).`,
+    clearData: "Gespeicherte Daten löschen",
+    clearConfirm: "Gespeicherte Daten wirklich löschen? Sie müssen die Excel-Datei danach erneut importieren.",
+    cleared: "Gespeicherte Daten gelöscht.",
+    savedNote: "Nach dem Import werden die Daten in diesem Browser gespeichert — beim nächsten Öffnen ist kein erneuter Import nötig.",
+    comboMemberTag: "Teil einer Kombi",
+    reservedTag: "reserviert für Kombi",
+    blockSoloTag: "Solo blockiert",
+  },
+  en: {
+    subtitle: "Biergarten table & shade finder",
+    tabLookup: "Find a table",
+    tabData: "Imported data",
+    partySizeLabel: "Party size",
+    slotLabel: "Reservation time",
+    noData: "No shade data loaded yet. Go to <strong>Imported data</strong> and upload your Excel file.",
+    noFit: (month, n) => `No table or combination in <strong>${month}</strong> seats ${n} people at this time.`,
+    shaded: "Shaded",
+    sun: "Sun",
+    combo: "Combo",
+    seatsLine: (n) => `Seats ${n}`,
+    exactFit: "exact fit",
+    spare: (n) => `${n} seat(s) to spare`,
+    sunUntil: (slot) => `Sun now — fully shaded from ${slot}`,
+    sunAllBlock: "In the sun for the rest of this service block",
+    otherOptions: "Other options",
+    importTitle: "Import your shade schedule",
+    importDesc: "Upload the Excel file (\"Shade Schedule\" / \"Table Combinations\" sheets). This replaces any data currently loaded.",
+    chooseFile: "Choose file (.xlsx)",
+    reading: "Reading file...",
+    importedSummary: (mo,tb,co) => `Imported ${mo} month arrangement(s), ${tb} table rows, ${co} combo(s).`,
+    skippedNote: (t,c) => ` (${t} table row(s) and ${c} combo row(s) skipped — missing/invalid data.)`,
+    importError: (msg) => `Could not read this file: ${msg}`,
+    headerNotFound: "Could not find the Month/Table header row on the shade schedule sheet.",
+    tablesCount: (n) => `${n} table(s)`,
+    shadedSlots: (a,b) => `shaded ${a}/${b} slots`,
+    combinationsCount: (n) => `Combinations — ${n}`,
+    noDataShort: "No data loaded",
+    loadedFromSave: (when) => `Loaded saved data (imported on ${when}).`,
+    clearData: "Clear saved data",
+    clearConfirm: "Really clear saved data? You'll need to re-import the Excel file afterwards.",
+    cleared: "Saved data cleared.",
+    savedNote: "After import, data is saved in this browser — no need to re-import next time you open this file.",
+    comboMemberTag: "Part of a combo",
+    reservedTag: "reserved for combo",
+    blockSoloTag: "Solo blocked",
+  }
+};
+let LANG = 'de';
+function t(key, ...args){
+  const v = STRINGS[LANG][key];
+  return typeof v === 'function' ? v(...args) : v;
+}
+
+document.getElementById('langDE').addEventListener('click', ()=> setLang('de'));
+document.getElementById('langEN').addEventListener('click', ()=> setLang('en'));
+function setLang(l){
+  LANG = l;
+  document.getElementById('langDE').classList.toggle('active', l==='de');
+  document.getElementById('langEN').classList.toggle('active', l==='en');
+  document.documentElement.lang = l;
+  applyStaticText();
+  renderAll();
+}
+
+function applyStaticText(){
+  document.getElementById('subtitleText').textContent = t('subtitle');
+  document.getElementById('tabBtnLookup').textContent = t('tabLookup');
+  document.getElementById('tabBtnData').textContent = t('tabData');
+  document.getElementById('partySizeLabel').textContent = t('partySizeLabel');
+  document.getElementById('slotLabel').textContent = t('slotLabel');
+  document.getElementById('importTitle').textContent = t('importTitle');
+  document.getElementById('importDesc').textContent = t('importDesc');
+  document.getElementById('importBtn').textContent = t('chooseFile');
+  document.getElementById('clearDataBtn').textContent = t('clearData');
+  document.getElementById('savedNoteText').textContent = lastImportedAt
+    ? t('loadedFromSave', new Date(lastImportedAt).toLocaleString(LANG === 'de' ? 'de-DE' : 'en-GB'))
+    : t('savedNote');
+}
+
+document.getElementById('clearDataBtn').addEventListener('click', clearStorage);
+
+// ---------- Slot definitions ----------
+const MITTAG_SLOTS = ["11","12","13","14","15"];
+const ABEND_SLOTS = ["18:00","18:30","19:00","19:30","20:00"];
+const ALL_SLOTS = MITTAG_SLOTS.concat(ABEND_SLOTS);
+
+function blockFor(slot){
+  return MITTAG_SLOTS.includes(slot) ? MITTAG_SLOTS : ABEND_SLOTS;
+}
+function slotDisplay(slot){
+  return MITTAG_SLOTS.includes(slot) ? (slot + ":00") : slot;
+}
+
+// ---------- App state ----------
+let DATA = { months: {}, combos: [], skipped: { tables: 0, combos: 0 } };
+let currentMonth = null;
+
+// ---------- Local persistence ----------
+const STORAGE_KEY = 'schattenplaner_data_v1';
+let lastImportedAt = null;
+
+function saveToStorage(){
+  try{
+    lastImportedAt = new Date().toISOString();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: DATA, importedAt: lastImportedAt }));
+  }catch(err){
+    // storage unavailable (private browsing, quota, etc.) — fail silently, import still works for this session
+    console.warn('Could not save to localStorage:', err);
+  }
+}
+
+function loadFromStorage(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return false;
+    const parsed = JSON.parse(raw);
+    if(!parsed.data || !parsed.data.months) return false;
+    DATA = parsed.data;
+    lastImportedAt = parsed.importedAt || null;
+    currentMonth = Object.keys(DATA.months)[0] || null;
+    return true;
+  }catch(err){
+    console.warn('Could not load from localStorage:', err);
+    return false;
+  }
+}
+
+function clearStorage(){
+  if(!confirm(t('clearConfirm'))) return;
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(err){}
+  DATA = { months: {}, combos: [], skipped: { tables: 0, combos: 0 } };
+  currentMonth = null;
+  lastImportedAt = null;
+  document.getElementById('importStatus').textContent = t('cleared');
+  document.getElementById('importStatus').className = 'status-line';
+  renderAll();
+}
+
+// ---------- Import / parsing ----------
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  document.getElementById('fileInput').click();
+});
+
+document.getElementById('fileInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('importStatus');
+  statusEl.textContent = t('reading');
+  statusEl.className = 'status-line';
+
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      const wb = XLSX.read(ev.target.result, { type: 'array' });
+      const parsed = parseWorkbook(wb);
+      DATA = parsed;
+      currentMonth = Object.keys(DATA.months)[0] || null;
+      const monthCount = Object.keys(DATA.months).length;
+      const tableCount = Object.values(DATA.months).reduce((a,m)=>a+m.tables.length,0);
+      statusEl.textContent = t('importedSummary', monthCount, tableCount, DATA.combos.length) +
+        (DATA.skipped.tables || DATA.skipped.combos ? t('skippedNote', DATA.skipped.tables, DATA.skipped.combos) : '');
+      saveToStorage();
+      renderAll();
+    }catch(err){
+      statusEl.textContent = t('importError', err.message);
+      statusEl.className = 'status-line error';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+function norm(v){
+  return String(v || '').trim().toLowerCase();
+}
+
+function findSheetByCandidates(wb, candidates){
+  for(const name of candidates){
+    const found = wb.SheetNames.find(n => norm(n) === norm(name));
+    if(found) return wb.Sheets[found];
+  }
+  return null;
+}
+
+function parseWorkbook(wb){
+  const result = { months: {}, combos: [], skipped: { tables: 0, combos: 0 } };
+
+  const shadeSheet = findSheetByCandidates(wb, ['Shade Schedule', 'Schattenplan']) || wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(shadeSheet, { header: 1, defval: '' });
+
+  let headerRowIdx = -1;
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i];
+    if(norm(r[0]).startsWith('month') && norm(r[1]).startsWith('table')){
+      headerRowIdx = i;
+      break;
+    }
+  }
+  if(headerRowIdx === -1) throw new Error(t('headerNotFound'));
+
+  const headerRow = rows[headerRowIdx];
+  const slotCols = [];
+  for(let c=3;c<headerRow.length;c++){
+    const label = String(headerRow[c]).trim();
+    if(label) slotCols.push({ col: c, label: label });
+  }
+
+  for(let i=headerRowIdx+1;i<rows.length;i++){
+    const r = rows[i];
+    const month = String(r[0] || '').trim();
+    const table = String(r[1] || '').trim();
+    if(!month || !table) continue;
+    if(norm(table).includes('example') || norm(table).includes('beispiel')) continue;
+
+    const capRaw = r[2];
+    const capacity = parseFloat(capRaw);
+    if(!capacity || isNaN(capacity) || capacity <= 0){
+      result.skipped.tables++;
+      continue;
+    }
+
+    const slots = {};
+    slotCols.forEach(sc=>{
+      const v = String(r[sc.col] || '').trim().toUpperCase();
+      slots[sc.label] = (v === 'X');
+    });
+
+    if(!result.months[month]) result.months[month] = { tables: [] };
+    result.months[month].tables.push({ name: table, capacity, slots });
+  }
+
+  const comboSheet = findSheetByCandidates(wb, ['Table Combinations', 'Tischkombinationen']);
+  if(comboSheet){
+    const crows = XLSX.utils.sheet_to_json(comboSheet, { header: 1, defval: '' });
+    let cHeaderIdx = -1;
+    for(let i=0;i<crows.length;i++){
+      if(norm(crows[i][0]).startsWith('combo name') && norm(crows[i][1]).startsWith('table 1')){
+        cHeaderIdx = i;
+        break;
+      }
+    }
+    if(cHeaderIdx !== -1){
+      for(let i=cHeaderIdx+1;i<crows.length;i++){
+        const r = crows[i];
+        const name = String(r[0] || '').trim();
+        const t1 = String(r[1] || '').trim();
+        const t2 = String(r[2] || '').trim();
+        const t3 = String(r[3] || '').trim();
+        const capRaw = r[4];
+        const blockRaw = String(r[5] || '').trim().toUpperCase();
+        const blockSolo = (blockRaw === 'X');
+        if(!name || !t1 || !t2) continue;
+        const capacity = parseFloat(capRaw);
+        if(!capacity || isNaN(capacity) || capacity <= 0){
+          result.skipped.combos++;
+          continue;
+        }
+        const members = [t1, t2];
+        if(t3) members.push(t3);
+        result.combos.push({ name, members, capacity, blockSolo });
+      }
+    }
+  }
+
+  return result;
+}
+
+// ---------- Shade lookup helpers ----------
+function tableShadedAt(monthTables, tableName, slot){
+  const t = monthTables.find(x => x.name === tableName);
+  if(!t) return null;
+  return !!t.slots[slot];
+}
+function comboShadedAt(monthTables, members, slot){
+  for(const name of members){
+    const s = tableShadedAt(monthTables, name, slot);
+    if(s === null) return null;
+    if(s === false) return false;
+  }
+  return true;
+}
+function findTransition(slot, isShadedAtFn){
+  const block = blockFor(slot);
+  const idx = block.indexOf(slot);
+  for(let i=idx+1;i<block.length;i++){
+    const s = isShadedAtFn(block[i]);
+    if(s === true) return block[i];
+  }
+  return null;
+}
+
+// ---------- Month / slot selects ----------
+function renderMonthSelect(){
+  const sel = document.getElementById('monthSelect');
+  sel.innerHTML = '';
+  const months = Object.keys(DATA.months);
+  if(months.length === 0){
+    const opt = document.createElement('option');
+    opt.textContent = t('noDataShort');
+    sel.appendChild(opt);
+    return;
+  }
+  months.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    if(m === currentMonth) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+document.getElementById('monthSelect').addEventListener('change', e=>{
+  currentMonth = e.target.value;
+  renderResult();
+});
+
+function renderSlotSelect(){
+  const sel = document.getElementById('slotSelect');
+  const prev = sel.value;
+  sel.innerHTML = '';
+  ALL_SLOTS.forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = slotDisplay(s);
+    sel.appendChild(opt);
+  });
+  if(prev && ALL_SLOTS.includes(prev)) sel.value = prev;
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- Recommendation ----------
+function recommend(){
+  const partySize = parseInt(document.getElementById('partySize').value, 10) || 1;
+  const slot = document.getElementById('slotSelect').value;
+  if(!currentMonth || !DATA.months[currentMonth]) return { candidates: [], noData: true };
+
+  const monthTables = DATA.months[currentMonth].tables;
+  const candidates = [];
+
+  // A table is "combo-reserved" if it's declared as a member of any combo —
+  // derived from the Table Combinations sheet, never entered separately.
+  const comboMemberNames = new Set();
+  const blockedSoloNames = new Set();
+  DATA.combos.forEach(c => c.members.forEach(m => {
+    comboMemberNames.add(m);
+    if(c.blockSolo) blockedSoloNames.add(m);
+  }));
+
+  monthTables.forEach(tb=>{
+    if(tb.capacity < partySize) return;
+    if(blockedSoloNames.has(tb.name)) return; // reserved exclusively for its combo — not shown solo at all
+    const isShaded = !!tb.slots[slot];
+    let warning = null;
+    if(!isShaded){
+      const nextSlot = findTransition(slot, (s)=>tableShadedAt(monthTables, tb.name, s));
+      warning = nextSlot ? t('sunUntil', slotDisplay(nextSlot)) : t('sunAllBlock');
+    }
+    const isComboMember = comboMemberNames.has(tb.name);
+    candidates.push({
+      name: tb.name, capacity: tb.capacity, isShaded, warning,
+      isCombo: false, isComboMember, slack: tb.capacity - partySize,
+      // tier: plain single tables first, combo-reserved singles next, combo entries last
+      tier: isComboMember ? 1 : 0
+    });
+  });
+
+  DATA.combos.forEach(c=>{
+    if(c.capacity < partySize) return;
+    const status = comboShadedAt(monthTables, c.members, slot);
+    if(status === null) return;
+    let warning = null;
+    if(!status){
+      const nextSlot = findTransition(slot, (s)=>comboShadedAt(monthTables, c.members, s));
+      warning = nextSlot ? t('sunUntil', slotDisplay(nextSlot)) : t('sunAllBlock');
+    }
+    candidates.push({
+      name: c.name, capacity: c.capacity, isShaded: status, warning,
+      isCombo: true, isComboMember: false, slack: c.capacity - partySize, tier: 2
+    });
+  });
+
+  candidates.sort((a,b)=>{
+    if(a.isShaded !== b.isShaded) return a.isShaded ? -1 : 1;
+    if(a.tier !== b.tier) return a.tier - b.tier;
+    return a.slack - b.slack;
+  });
+
+  return { candidates, noData: false, partySize };
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function renderResult(){
+  const resultArea = document.getElementById('resultArea');
+  const altArea = document.getElementById('altArea');
+  const noDataNotice = document.getElementById('noDataNotice');
+
+  if(Object.keys(DATA.months).length === 0){
+    noDataNotice.innerHTML = `<div class="result-card empty">${t('noData')}</div>`;
+    resultArea.innerHTML = '';
+    altArea.innerHTML = '';
+    return;
+  }
+  noDataNotice.innerHTML = '';
+
+  const { candidates, partySize } = recommend();
+  if(candidates.length === 0){
+    resultArea.innerHTML = `<div class="result-card empty">${t('noFit', escapeHtml(currentMonth), partySize)}</div>`;
+    altArea.innerHTML = '';
+    return;
+  }
+
+  const best = candidates[0];
+  resultArea.innerHTML = `
+    <div class="result-card">
+      <div class="result-top">
+        <span class="result-name">${escapeHtml(best.name)}</span>
+        <span style="display:flex;gap:6px;">
+          ${best.isCombo ? `<span class="badge combo">${t('combo')}</span>` : ''}
+          ${best.isComboMember ? `<span class="badge combo">${t('comboMemberTag')}</span>` : ''}
+          <span class="badge ${best.isShaded ? 'shade' : 'sun'}">${best.isShaded ? '◐ ' + t('shaded') : '☀ ' + t('sun')}</span>
+        </span>
+      </div>
+      <div class="result-meta">${t('seatsLine', best.capacity)} · ${best.slack === 0 ? t('exactFit') : t('spare', best.slack)}</div>
+      ${best.warning ? `<div class="warn-line">${escapeHtml(best.warning)}</div>` : ''}
+    </div>
+  `;
+
+  const rest = candidates.slice(1);
+  altArea.innerHTML = rest.length ? `
+    <div class="section-label">${t('otherOptions')}</div>
+    <ul class="alt-list">
+      ${rest.map(c => `
+        <li>
+          <div class="alt-row">
+            <span class="alt-name">${escapeHtml(c.name)}${c.isCombo ? ` <span class="badge combo" style="margin-left:4px;">${t('combo')}</span>` : ''}${c.isComboMember ? ` <span class="badge combo" style="margin-left:4px;">${t('comboMemberTag')}</span>` : ''}</span>
+            <span class="badge ${c.isShaded ? 'shade' : 'sun'}">${c.isShaded ? '◐ ' + t('shaded') : '☀ ' + t('sun')}</span>
+          </div>
+          <div class="alt-row" style="margin-top:4px;">
+            <span class="alt-cap">${t('seatsLine', c.capacity)}</span>
+          </div>
+          ${c.warning ? `<div class="alt-warn">${escapeHtml(c.warning)}</div>` : ''}
+        </li>
+      `).join('')}
+    </ul>
+  ` : '';
+}
+
+document.getElementById('partySize').addEventListener('input', renderResult);
+document.getElementById('slotSelect').addEventListener('change', renderResult);
+
+// ---------- Data summary tab ----------
+function renderDataSummary(){
+  const el = document.getElementById('dataSummary');
+  const months = Object.keys(DATA.months);
+  if(months.length === 0){ el.innerHTML = ''; return; }
+
+  const blockedSoloNames = new Set();
+  DATA.combos.forEach(c => { if(c.blockSolo) c.members.forEach(m => blockedSoloNames.add(m)); });
+
+  let html = '';
+  months.forEach(m=>{
+    html += `<div class="section-label">${escapeHtml(m)} — ${t('tablesCount', DATA.months[m].tables.length)}</div>`;
+    html += '<div class="data-table-card">';
+    DATA.months[m].tables.forEach(tb=>{
+      const shadedCount = Object.values(tb.slots).filter(Boolean).length;
+      const reservedTag = blockedSoloNames.has(tb.name) ? ` · ${t('reservedTag')}` : '';
+      html += `<div class="row"><span class="name">${escapeHtml(tb.name)}</span><span class="val">${t('seatsLine', tb.capacity)} · ${t('shadedSlots', shadedCount, ALL_SLOTS.length)}${reservedTag}</span></div>`;
+    });
+    html += '</div>';
+  });
+
+  if(DATA.combos.length){
+    html += `<div class="section-label">${t('combinationsCount', DATA.combos.length)}</div>`;
+    html += '<div class="data-table-card">';
+    DATA.combos.forEach(c=>{
+      const blockTag = c.blockSolo ? ` · ${t('blockSoloTag')}` : '';
+      html += `<div class="row"><span class="name">${escapeHtml(c.name)}</span><span class="val">${c.members.map(escapeHtml).join(' + ')} · ${t('seatsLine', c.capacity)}${blockTag}</span></div>`;
+    });
+    html += '</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+// ---------- Init ----------
+function renderAll(){
+  renderMonthSelect();
+  renderSlotSelect();
+  renderResult();
+  renderDataSummary();
+  document.getElementById('clearDataBtn').style.display =
+    Object.keys(DATA.months).length ? 'inline-block' : 'none';
+  document.getElementById('savedNoteText').textContent = lastImportedAt
+    ? t('loadedFromSave', new Date(lastImportedAt).toLocaleString(LANG === 'de' ? 'de-DE' : 'en-GB'))
+    : t('savedNote');
+}
+loadFromStorage();
+applyStaticText();
+renderAll();
+</script>
+</body>
+</html>
