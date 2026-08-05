@@ -69,7 +69,3 @@ If a table isn't shaded yet but will be later in the same service block, the app
 - **Shade data is only as accurate as your observation log.** It's not computed from sun position or geometry, it reflects whatever hours you walked the garden and recorded.
 - **Persistence is per browser, per device.** Clearing browser data or switching computers means re-importing the Excel file once.
 - **No live Google Drive import.** Cross-origin restrictions on Drive's file endpoints make this unreliable without a backend and an exposed API key; import is manual, by design.
-
-## License
-
-Add a license before making this public if you intend others to reuse it. Without one, default copyright applies and technically nobody else may legally copy or modify it, GitHub displaying the code doesn't grant that permission.
