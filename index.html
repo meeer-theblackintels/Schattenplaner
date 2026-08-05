@@ -228,12 +228,12 @@
   .viz-ticks span.block-gap{border-left:1px dashed var(--border);padding-left:4px;}
   #vizGrids{
     display:flex;
-    gap:28px;
+    flex-direction:row;
+    gap:24px;
     margin-top:24px;
-    overflow-x:auto;
-    padding-bottom:8px;
+    align-items:flex-start;
   }
-  .viz-cluster{flex:0 0 auto;}
+  .viz-cluster{flex:1 1 0;min-width:0;}
   .viz-cluster-label{
     font-size:12px;
     text-transform:uppercase;
@@ -243,18 +243,20 @@
   }
   .viz-grid{
     display:grid;
-    grid-template-columns:repeat(3, 64px);
-    grid-auto-rows:56px;
-    gap:6px;
+    grid-template-columns:repeat(3, 1fr);
+    gap:8px;
+    width:100%;
   }
   .viz-cell{
+    aspect-ratio:1 / 1;
+    width:100%;
     border-radius:8px;
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:center;
     font-family:'IBM Plex Mono', monospace;
-    font-size:12px;
+    font-size:clamp(14px, 4vw, 22px);
     font-weight:600;
     border:1px solid var(--border);
     position:relative;
@@ -263,12 +265,12 @@
   .viz-cell.shade{background:var(--shade-dim);color:var(--shade);border-color:var(--shade);}
   .viz-cell.sun{background:var(--sun-dim);color:var(--sun);border-color:var(--sun);}
   .viz-cell.nodata{background:var(--surface-alt);color:var(--text-faint);border-style:dashed;}
-  .viz-cell .cap{font-size:9px;font-weight:400;opacity:0.8;margin-top:2px;}
+  .viz-cell .cap{font-size:0.5em;font-weight:400;opacity:0.8;margin-top:4px;}
   .viz-cell .flag{
     position:absolute;
-    top:2px;
-    right:4px;
-    font-size:9px;
+    top:6px;
+    right:8px;
+    font-size:0.6em;
   }
   .viz-legend{
     display:flex;
@@ -892,9 +894,7 @@ function renderVizTicks(){
 }
 
 function renderVizCluster(layout, tables, monthTables, comboMemberNames, blockedSoloNames, slot){
-  let maxRow = 0;
-  Object.values(layout).forEach(([c,r]) => { if(r > maxRow) maxRow = r; });
-  let html = `<div class="viz-grid" style="grid-template-rows:repeat(${maxRow}, 56px);">`;
+  let html = `<div class="viz-grid">`;
   Object.entries(layout).forEach(([name, [col,row]])=>{
     const tb = monthTables.find(x => x.name === name);
     let cls = 'nodata';
