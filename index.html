@@ -214,6 +214,71 @@
   .data-table-card .row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;}
   .data-table-card .row .name{font-weight:600;}
   .data-table-card .row .val{color:var(--text-dim);font-family:'IBM Plex Mono', monospace;}
+
+  /* Table visualizer */
+  .viz-ticks{
+    display:flex;
+    justify-content:space-between;
+    margin-top:4px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:var(--text-faint);
+    position:relative;
+  }
+  .viz-ticks span.block-gap{border-left:1px dashed var(--border);padding-left:4px;}
+  #vizGrids{
+    display:flex;
+    gap:28px;
+    margin-top:24px;
+    overflow-x:auto;
+    padding-bottom:8px;
+  }
+  .viz-cluster{flex:0 0 auto;}
+  .viz-cluster-label{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--text-faint);
+    margin-bottom:10px;
+  }
+  .viz-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 64px);
+    grid-auto-rows:56px;
+    gap:6px;
+  }
+  .viz-cell{
+    border-radius:8px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    font-weight:600;
+    border:1px solid var(--border);
+    position:relative;
+    line-height:1.2;
+  }
+  .viz-cell.shade{background:var(--shade-dim);color:var(--shade);border-color:var(--shade);}
+  .viz-cell.sun{background:var(--sun-dim);color:var(--sun);border-color:var(--sun);}
+  .viz-cell.nodata{background:var(--surface-alt);color:var(--text-faint);border-style:dashed;}
+  .viz-cell .cap{font-size:9px;font-weight:400;opacity:0.8;margin-top:2px;}
+  .viz-cell .flag{
+    position:absolute;
+    top:2px;
+    right:4px;
+    font-size:9px;
+  }
+  .viz-legend{
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+    margin-top:20px;
+    font-size:12px;
+    color:var(--text-dim);
+  }
+  .viz-legend .legend-dot{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px;}
 </style>
 </head>
 <body>
@@ -235,6 +300,7 @@
 
   <nav class="tabs">
     <button class="active" data-tab="lookup" id="tabBtnLookup"></button>
+    <button data-tab="visualize" id="tabBtnVisualize"></button>
     <button data-tab="data" id="tabBtnData"></button>
   </nav>
 
@@ -252,6 +318,19 @@
     </div>
     <div id="resultArea"></div>
     <div id="altArea"></div>
+  </section>
+
+  <section id="tab-visualize">
+    <div id="vizNoDataNotice"></div>
+    <div id="vizControls">
+      <div class="field" style="margin-bottom:10px;">
+        <label id="vizSlotCurrentLabel" style="font-family:'Fraunces', serif;font-weight:700;font-size:20px;text-transform:none;letter-spacing:0;color:var(--text);"></label>
+      </div>
+      <input type="range" id="vizSlider" min="0" max="9" step="1" value="6" style="width:100%;accent-color:var(--shade);">
+      <div id="vizTicks" class="viz-ticks"></div>
+    </div>
+    <div id="vizGrids"></div>
+    <div class="viz-legend" id="vizLegend"></div>
   </section>
 
   <section id="tab-data">
@@ -311,6 +390,15 @@ const STRINGS = {
     comboMemberTag: "Teil einer Kombi",
     reservedTag: "reserviert für Kombi",
     blockSoloTag: "Solo blockiert",
+    tabVisualize: "Tisch visualisieren",
+    vizNoData: "Noch keine Schattendaten geladen.",
+    legendShade: "Schatten",
+    legendSun: "Sonne",
+    legendNoData: "Keine Daten für diesen Tisch",
+    legendComboFlag: "⚭ Teil einer Kombi",
+    legendBlockFlag: "🔒 Solo blockiert",
+    clusterG: "G-Reihe",
+    clusterA: "A-Reihe",
   },
   en: {
     subtitle: "Biergarten table & shade finder",
@@ -349,6 +437,15 @@ const STRINGS = {
     comboMemberTag: "Part of a combo",
     reservedTag: "reserved for combo",
     blockSoloTag: "Solo blocked",
+    tabVisualize: "Visualize tables",
+    vizNoData: "No shade data loaded yet.",
+    legendShade: "Shaded",
+    legendSun: "Sun",
+    legendNoData: "No data for this table",
+    legendComboFlag: "⚭ Part of a combo",
+    legendBlockFlag: "🔒 Solo blocked",
+    clusterG: "G row",
+    clusterA: "A row",
   }
 };
 let LANG = 'de';
@@ -372,6 +469,7 @@ function applyStaticText(){
   document.getElementById('subtitleText').textContent = t('subtitle');
   document.getElementById('tabBtnLookup').textContent = t('tabLookup');
   document.getElementById('tabBtnData').textContent = t('tabData');
+  document.getElementById('tabBtnVisualize').textContent = t('tabVisualize');
   document.getElementById('partySizeLabel').textContent = t('partySizeLabel');
   document.getElementById('slotLabel').textContent = t('slotLabel');
   document.getElementById('importTitle').textContent = t('importTitle');
@@ -396,6 +494,20 @@ function blockFor(slot){
 function slotDisplay(slot){
   return MITTAG_SLOTS.includes(slot) ? (slot + ":00") : slot;
 }
+
+// ---------- Fixed physical layout (from floor sketch) ----------
+const G_LAYOUT = {
+  G4:[1,1],  G8:[2,1],  G12:[3,1],
+  G3:[1,2],  G7:[2,2],  G11:[3,2],
+  G2:[1,3],  G6:[2,3],  G10:[3,3],
+  G1:[1,4],  G5:[2,4],  G9:[3,4],
+};
+const A_LAYOUT = {
+  A3:[1,1],  A6:[2,1],  A10:[3,1],
+  A2:[1,2],  A5:[2,2],  A9:[3,2],
+  A1:[1,3],             A8:[3,3],
+             A4:[2,4],  A7:[3,4],
+};
 
 // ---------- App state ----------
 let DATA = { months: {}, combos: [], skipped: { tables: 0, combos: 0 } };
@@ -617,6 +729,7 @@ function renderMonthSelect(){
 document.getElementById('monthSelect').addEventListener('change', e=>{
   currentMonth = e.target.value;
   renderResult();
+  renderVisualizer();
 });
 
 function renderSlotSelect(){
@@ -767,6 +880,88 @@ function renderResult(){
 document.getElementById('partySize').addEventListener('input', renderResult);
 document.getElementById('slotSelect').addEventListener('change', renderResult);
 
+// ---------- Table visualizer ----------
+document.getElementById('vizSlider').addEventListener('input', renderVisualizer);
+
+function renderVizTicks(){
+  const el = document.getElementById('vizTicks');
+  el.innerHTML = ALL_SLOTS.map((s, i) => {
+    const isBlockStart = (s === '18:00');
+    return `<span${isBlockStart ? ' class="block-gap"' : ''}>${slotDisplay(s)}</span>`;
+  }).join('');
+}
+
+function renderVizCluster(layout, tables, monthTables, comboMemberNames, blockedSoloNames, slot){
+  let maxRow = 0;
+  Object.values(layout).forEach(([c,r]) => { if(r > maxRow) maxRow = r; });
+  let html = `<div class="viz-grid" style="grid-template-rows:repeat(${maxRow}, 56px);">`;
+  Object.entries(layout).forEach(([name, [col,row]])=>{
+    const tb = monthTables.find(x => x.name === name);
+    let cls = 'nodata';
+    let capHtml = '';
+    let flag = '';
+    if(tb){
+      cls = tb.slots[slot] ? 'shade' : 'sun';
+      capHtml = `<span class="cap">${tb.capacity}</span>`;
+      if(blockedSoloNames.has(name)) flag = '🔒';
+      else if(comboMemberNames.has(name)) flag = '⚭';
+    }
+    html += `<div class="viz-cell ${cls}" style="grid-column:${col};grid-row:${row};" title="${escapeHtml(name)}">
+      ${flag ? `<span class="flag">${flag}</span>` : ''}
+      <span>${escapeHtml(name)}</span>
+      ${capHtml}
+    </div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderVisualizer(){
+  renderVizTicks();
+  const noDataEl = document.getElementById('vizNoDataNotice');
+  const gridsEl = document.getElementById('vizGrids');
+  const legendEl = document.getElementById('vizLegend');
+
+  if(Object.keys(DATA.months).length === 0 || !currentMonth){
+    noDataEl.innerHTML = `<div class="result-card empty">${t('vizNoData')}</div>`;
+    gridsEl.innerHTML = '';
+    legendEl.innerHTML = '';
+    return;
+  }
+  noDataEl.innerHTML = '';
+
+  const slider = document.getElementById('vizSlider');
+  const slot = ALL_SLOTS[parseInt(slider.value, 10)];
+  document.getElementById('vizSlotCurrentLabel').textContent = slotDisplay(slot);
+
+  const monthTables = DATA.months[currentMonth].tables;
+  const comboMemberNames = new Set();
+  const blockedSoloNames = new Set();
+  DATA.combos.forEach(c => c.members.forEach(m => {
+    comboMemberNames.add(m);
+    if(c.blockSolo) blockedSoloNames.add(m);
+  }));
+
+  gridsEl.innerHTML = `
+    <div class="viz-cluster">
+      <div class="viz-cluster-label">${t('clusterG')}</div>
+      ${renderVizCluster(G_LAYOUT, null, monthTables, comboMemberNames, blockedSoloNames, slot)}
+    </div>
+    <div class="viz-cluster">
+      <div class="viz-cluster-label">${t('clusterA')}</div>
+      ${renderVizCluster(A_LAYOUT, null, monthTables, comboMemberNames, blockedSoloNames, slot)}
+    </div>
+  `;
+
+  legendEl.innerHTML = `
+    <span><span class="legend-dot" style="background:var(--shade-dim);border:1px solid var(--shade);"></span>${t('legendShade')}</span>
+    <span><span class="legend-dot" style="background:var(--sun-dim);border:1px solid var(--sun);"></span>${t('legendSun')}</span>
+    <span><span class="legend-dot" style="background:var(--surface-alt);border:1px dashed var(--border);"></span>${t('legendNoData')}</span>
+    <span>${t('legendComboFlag')}</span>
+    <span>${t('legendBlockFlag')}</span>
+  `;
+}
+
 // ---------- Data summary tab ----------
 function renderDataSummary(){
   const el = document.getElementById('dataSummary');
@@ -806,6 +1001,7 @@ function renderAll(){
   renderMonthSelect();
   renderSlotSelect();
   renderResult();
+  renderVisualizer();
   renderDataSummary();
   document.getElementById('clearDataBtn').style.display =
     Object.keys(DATA.months).length ? 'inline-block' : 'none';
