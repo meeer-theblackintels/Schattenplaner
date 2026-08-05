@@ -328,7 +328,7 @@
       <div class="field" style="margin-bottom:10px;">
         <label id="vizSlotCurrentLabel" style="font-family:'Fraunces', serif;font-weight:700;font-size:20px;text-transform:none;letter-spacing:0;color:var(--text);"></label>
       </div>
-      <input type="range" id="vizSlider" min="0" max="9" step="1" value="6" style="width:100%;accent-color:var(--shade);">
+      <input type="range" id="vizSlider" min="0" max="11" step="1" value="8" style="width:100%;accent-color:var(--shade);">
       <div id="vizTicks" class="viz-ticks"></div>
     </div>
     <div id="vizGrids"></div>
@@ -487,7 +487,7 @@ document.getElementById('clearDataBtn').addEventListener('click', clearStorage);
 
 // ---------- Slot definitions ----------
 const MITTAG_SLOTS = ["11","12","13","14","15"];
-const ABEND_SLOTS = ["18:00","18:30","19:00","19:30","20:00"];
+const ABEND_SLOTS = ["17:00","17:30","18:00","18:30","19:00","19:30","20:00"];
 const ALL_SLOTS = MITTAG_SLOTS.concat(ABEND_SLOTS);
 
 function blockFor(slot){
@@ -888,7 +888,7 @@ document.getElementById('vizSlider').addEventListener('input', renderVisualizer)
 function renderVizTicks(){
   const el = document.getElementById('vizTicks');
   el.innerHTML = ALL_SLOTS.map((s, i) => {
-    const isBlockStart = (s === '18:00');
+    const isBlockStart = (s === '17:00');
     return `<span${isBlockStart ? ' class="block-gap"' : ''}>${slotDisplay(s)}</span>`;
   }).join('');
 }
