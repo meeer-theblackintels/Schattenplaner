@@ -17,7 +17,7 @@ Biergarten seating gets assigned by memory and habit, which breaks down under tw
 
 ## Getting started
 
-1. Open `shade-schedule-template.xlsx` and fill in your real table data (see **Data format** below). Replace the example rows, they're placeholders.
+1. [Download the template](shade-schedule-template.xlsx) and fill in your real table data (see **Data format** below). Replace the example rows, they're placeholders.
 2. Open `biergarten-table-finder.html` in a browser.
 3. Go to **Imported Data** (**Importierte Daten**) and upload your filled-in Excel file.
 4. Switch to **Find a Table** (**Tisch finden**), enter party size and time, and read the recommendation.
