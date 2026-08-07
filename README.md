@@ -38,7 +38,7 @@ One row per table, per month.
 | `Table` | Table identifier (e.g. `G4`, `A10`). |
 | `Capacity` | Real seat count. Required — rows without it are skipped on import. |
 | `11`–`15` | Mittagdienst, hourly. Mark `X` if fully shaded that hour, leave blank if not. |
-| `18:00`–`20:00` | Abenddienst, half-hourly. Same marking rule. |
+| `17:00`–`20:00` | Abenddienst, half-hourly. Same marking rule. |
 
 ### Sheet 2: Table Combinations (`Tischkombinationen`)
 
