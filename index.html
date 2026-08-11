@@ -369,7 +369,8 @@ const STRINGS = {
     seatsLine: (n) => `${n} Plätze`,
     exactFit: "passt genau",
     spare: (n) => `${n} Platz/Plätze übrig`,
-    sunUntil: (slot) => `Jetzt Sonne — ab ${slot} vollständig im Schatten`,
+    sunUntil: (end) => `Jetzt in der Sonne, ab ${end} wieder im Schatten.`,
+    sunBetween: (start, end) => `In der Sonne zwischen ${start} und ${end}, danach wieder im Schatten.`,
     sunAllBlock: "Für den Rest dieses Service in der Sonne",
     otherOptions: "Weitere Optionen",
     importTitle: "Schattenplan importieren",
@@ -377,12 +378,12 @@ const STRINGS = {
     chooseFile: "Datei auswählen (.xlsx)",
     reading: "Datei wird gelesen...",
     importedSummary: (mo,tb,co) => `${mo} Monatsplan(e), ${tb} Tischzeilen, ${co} Kombination(en) importiert.`,
-    skippedNote: (t,c) => ` (${t} Tischzeile(n) und ${c} Kombinationszeile(n) übersprungen — fehlende/ungültige Daten.)`,
+    skippedNote: (t,c) => ` (${t} Tischzeile(n) und ${c} Kombinationszeile(n) übersprungen, fehlende oder ungültige Daten.)`,
     importError: (msg) => `Datei konnte nicht gelesen werden: ${msg}`,
     headerNotFound: "Die Kopfzeile „Month/Monat“ und „Table/Tisch“ wurde im Schattenplan-Blatt nicht gefunden.",
     tablesCount: (n) => `${n} Tisch(e)`,
     shadedSlots: (a,b) => `Schatten bei ${a}/${b} Zeiten`,
-    combinationsCount: (n) => `Kombinationen — ${n}`,
+    combinationsCount: (n) => `Kombinationen (${n})`,
     noDataShort: "Keine Daten geladen",
     loadedFromSave: (when) => `Gespeicherte Daten geladen (importiert am ${when}).`,
     usingDefault: "Es werden die mitgelieferten Standarddaten verwendet. Eigene Excel-Datei importieren, um sie zu ersetzen.",
@@ -390,7 +391,7 @@ const STRINGS = {
     clearData: "Original-Daten von Schattenplaner verwenden",
     clearConfirm: "Alle importierten/gespeicherten Änderungen verwerfen und die Original-Schattenplaner-Daten laden?",
     cleared: "Daten gelöscht.",
-    savedNote: "Nach dem Import werden die Daten in diesem Browser gespeichert — beim nächsten Öffnen ist kein erneuter Import nötig.",
+    savedNote: "Nach dem Import werden die Daten in diesem Browser gespeichert. Beim nächsten Öffnen ist kein erneuter Import nötig.",
     comboMemberTag: "Teil einer Kombi",
     reservedTag: "reserviert für Kombi",
     blockSoloTag: "Solo blockiert",
@@ -418,7 +419,8 @@ const STRINGS = {
     seatsLine: (n) => `Seats ${n}`,
     exactFit: "exact fit",
     spare: (n) => `${n} seat(s) to spare`,
-    sunUntil: (slot) => `Sun now — fully shaded from ${slot}`,
+    sunUntil: (end) => `In the sun now, shaded again from ${end}.`,
+    sunBetween: (start, end) => `In the sun between ${start} and ${end}, shaded again after that.`,
     sunAllBlock: "In the sun for the rest of this service block",
     otherOptions: "Other options",
     importTitle: "Import your shade schedule",
@@ -426,12 +428,12 @@ const STRINGS = {
     chooseFile: "Choose file (.xlsx)",
     reading: "Reading file...",
     importedSummary: (mo,tb,co) => `Imported ${mo} month arrangement(s), ${tb} table rows, ${co} combo(s).`,
-    skippedNote: (t,c) => ` (${t} table row(s) and ${c} combo row(s) skipped — missing/invalid data.)`,
+    skippedNote: (t,c) => ` (${t} table row(s) and ${c} combo row(s) skipped, missing or invalid data.)`,
     importError: (msg) => `Could not read this file: ${msg}`,
     headerNotFound: "Could not find the Month/Table header row on the shade schedule sheet.",
     tablesCount: (n) => `${n} table(s)`,
     shadedSlots: (a,b) => `shaded ${a}/${b} slots`,
-    combinationsCount: (n) => `Combinations — ${n}`,
+    combinationsCount: (n) => `Combinations (${n})`,
     noDataShort: "No data loaded",
     loadedFromSave: (when) => `Loaded saved data (imported on ${when}).`,
     usingDefault: "Using the bundled default data. Import your own Excel file to replace it.",
@@ -439,7 +441,7 @@ const STRINGS = {
     clearData: "Use the original data from Schattenplaner",
     clearConfirm: "Discard any imported/saved changes and load Schattenplaner's original data?",
     cleared: "Data cleared.",
-    savedNote: "After import, data is saved in this browser — no need to re-import next time you open this file.",
+    savedNote: "After import, data is saved in this browser. No need to re-import next time you open this file.",
     comboMemberTag: "Part of a combo",
     reservedTag: "reserved for combo",
     blockSoloTag: "Solo blocked",
@@ -746,14 +748,32 @@ function comboShadedAt(monthTables, members, slot){
   }
   return true;
 }
-function findTransition(slot, isShadedAtFn){
+function analyzeShadeWindow(slot, isShadedAtFn){
   const block = blockFor(slot);
   const idx = block.indexOf(slot);
-  for(let i=idx+1;i<block.length;i++){
-    const s = isShadedAtFn(block[i]);
-    if(s === true) return block[i];
+  const flags = block.map(s => isShadedAtFn(s));
+
+  // Walk backward to find where this unshaded stretch started within the block.
+  let startIdx = idx;
+  while(startIdx > 0 && flags[startIdx-1] === false) startIdx--;
+  const wasShadedBefore = startIdx > 0; // a shaded slot sits right before this stretch
+
+  // Walk forward to find when shade resumes, if it does within this block.
+  let endIdx = -1;
+  for(let i=idx+1;i<flags.length;i++){
+    if(flags[i] === true){ endIdx = i; break; }
   }
-  return null;
+
+  if(endIdx === -1) return { type: 'none' };
+  if(wasShadedBefore) return { type: 'between', start: block[startIdx], end: block[endIdx] };
+  return { type: 'until', end: block[endIdx] };
+}
+
+function buildShadeWarning(slot, isShadedAtFn){
+  const analysis = analyzeShadeWindow(slot, isShadedAtFn);
+  if(analysis.type === 'between') return t('sunBetween', slotDisplay(analysis.start), slotDisplay(analysis.end));
+  if(analysis.type === 'until') return t('sunUntil', slotDisplay(analysis.end));
+  return t('sunAllBlock');
 }
 
 // ---------- Month / slot selects ----------
@@ -828,8 +848,7 @@ function recommend(){
     const isShaded = !!tb.slots[slot];
     let warning = null;
     if(!isShaded){
-      const nextSlot = findTransition(slot, (s)=>tableShadedAt(monthTables, tb.name, s));
-      warning = nextSlot ? t('sunUntil', slotDisplay(nextSlot)) : t('sunAllBlock');
+      warning = buildShadeWarning(slot, (s)=>tableShadedAt(monthTables, tb.name, s));
     }
     const isComboMember = comboMemberNames.has(tb.name);
     candidates.push({
@@ -846,8 +865,7 @@ function recommend(){
     if(status === null) return;
     let warning = null;
     if(!status){
-      const nextSlot = findTransition(slot, (s)=>comboShadedAt(monthTables, c.members, s));
-      warning = nextSlot ? t('sunUntil', slotDisplay(nextSlot)) : t('sunAllBlock');
+      warning = buildShadeWarning(slot, (s)=>comboShadedAt(monthTables, c.members, s));
     }
     candidates.push({
       name: c.name, capacity: c.capacity, isShaded: status, warning,
@@ -1020,7 +1038,7 @@ function renderDataSummary(){
 
   let html = '';
   months.forEach(m=>{
-    html += `<div class="section-label">${escapeHtml(m)} — ${t('tablesCount', DATA.months[m].tables.length)}</div>`;
+    html += `<div class="section-label">${escapeHtml(m)} (${t('tablesCount', DATA.months[m].tables.length)})</div>`;
     html += '<div class="data-table-card">';
     DATA.months[m].tables.forEach(tb=>{
       const shadedCount = Object.values(tb.slots).filter(Boolean).length;
