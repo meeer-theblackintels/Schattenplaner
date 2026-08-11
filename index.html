@@ -369,9 +369,10 @@ const STRINGS = {
     seatsLine: (n) => `${n} Plätze`,
     exactFit: "passt genau",
     spare: (n) => `${n} Platz/Plätze übrig`,
-    sunUntil: (end) => `Jetzt in der Sonne, ab ${end} wieder im Schatten.`,
-    sunBetween: (start, end) => `In der Sonne zwischen ${start} und ${end}, danach wieder im Schatten.`,
-    sunAllBlock: "Für den Rest dieses Service in der Sonne",
+    sunUntil: (end) => `aber erst ab ${end} im Schatten`,
+    sunBetween: (start, end) => `aber in der Sonne zwischen ${start} und ${end}`,
+    shadedButSunFrom: (end) => `aber ab ${end} in der Sonne`,
+    sunAllBlock: "aber den Rest des Service in der Sonne",
     otherOptions: "Weitere Optionen",
     importTitle: "Schattenplan importieren",
     importDesc: "Excel-Datei hochladen (Tabellenblätter „Schattenplan“ und „Tischkombinationen“). Dies ersetzt alle aktuell geladenen Daten.",
@@ -419,9 +420,10 @@ const STRINGS = {
     seatsLine: (n) => `Seats ${n}`,
     exactFit: "exact fit",
     spare: (n) => `${n} seat(s) to spare`,
-    sunUntil: (end) => `In the sun now, shaded again from ${end}.`,
-    sunBetween: (start, end) => `In the sun between ${start} and ${end}, shaded again after that.`,
-    sunAllBlock: "In the sun for the rest of this service block",
+    sunUntil: (end) => `but shaded only from ${end}`,
+    sunBetween: (start, end) => `but in the sun between ${start} and ${end}`,
+    shadedButSunFrom: (end) => `but in the sun from ${end}`,
+    sunAllBlock: "but in the sun for the rest of this service block",
     otherOptions: "Other options",
     importTitle: "Import your shade schedule",
     importDesc: "Upload the Excel file (\"Shade Schedule\" / \"Table Combinations\" sheets). This replaces any data currently loaded.",
@@ -769,7 +771,20 @@ function analyzeShadeWindow(slot, isShadedAtFn){
   return { type: 'until', end: block[endIdx] };
 }
 
-function buildShadeWarning(slot, isShadedAtFn){
+function buildShadeNote(slot, isShadedAtFn, isShadedNow){
+  const block = blockFor(slot);
+  const idx = block.indexOf(slot);
+
+  if(isShadedNow){
+    // Currently shaded — check whether that holds for the rest of this block.
+    for(let i=idx+1;i<block.length;i++){
+      if(isShadedAtFn(block[i]) === false){
+        return t('shadedButSunFrom', slotDisplay(block[i]));
+      }
+    }
+    return null; // stays shaded the rest of the block — nothing to flag
+  }
+
   const analysis = analyzeShadeWindow(slot, isShadedAtFn);
   if(analysis.type === 'between') return t('sunBetween', slotDisplay(analysis.start), slotDisplay(analysis.end));
   if(analysis.type === 'until') return t('sunUntil', slotDisplay(analysis.end));
@@ -846,10 +861,7 @@ function recommend(){
     if(tb.capacity < partySize) return;
     if(blockedSoloNames.has(tb.name)) return; // reserved exclusively for its combo — not shown solo at all
     const isShaded = !!tb.slots[slot];
-    let warning = null;
-    if(!isShaded){
-      warning = buildShadeWarning(slot, (s)=>tableShadedAt(monthTables, tb.name, s));
-    }
+    const warning = buildShadeNote(slot, (s)=>tableShadedAt(monthTables, tb.name, s), isShaded);
     const isComboMember = comboMemberNames.has(tb.name);
     candidates.push({
       name: tb.name, capacity: tb.capacity, isShaded, warning,
@@ -863,10 +875,7 @@ function recommend(){
     if(c.capacity < partySize) return;
     const status = comboShadedAt(monthTables, c.members, slot);
     if(status === null) return;
-    let warning = null;
-    if(!status){
-      warning = buildShadeWarning(slot, (s)=>comboShadedAt(monthTables, c.members, s));
-    }
+    const warning = buildShadeNote(slot, (s)=>comboShadedAt(monthTables, c.members, s), status);
     candidates.push({
       name: c.name, capacity: c.capacity, isShaded: status, warning,
       isCombo: true, isComboMember: false, slack: c.capacity - partySize, tier: 2
@@ -919,8 +928,7 @@ function renderResult(){
           <span class="badge ${best.isShaded ? 'shade' : 'sun'}">${best.isShaded ? '◐ ' + t('shaded') : '☀ ' + t('sun')}</span>
         </span>
       </div>
-      <div class="result-meta">${t('seatsLine', best.capacity)} · ${best.slack === 0 ? t('exactFit') : t('spare', best.slack)}</div>
-      ${best.warning ? `<div class="warn-line">${escapeHtml(best.warning)}</div>` : ''}
+      <div class="result-meta">${t('seatsLine', best.capacity)} · ${best.slack === 0 ? t('exactFit') : t('spare', best.slack)}${best.warning ? ', ' + escapeHtml(best.warning) : ''}</div>
     </div>
   `;
 
@@ -935,9 +943,8 @@ function renderResult(){
             <span class="badge ${c.isShaded ? 'shade' : 'sun'}">${c.isShaded ? '◐ ' + t('shaded') : '☀ ' + t('sun')}</span>
           </div>
           <div class="alt-row" style="margin-top:4px;">
-            <span class="alt-cap">${t('seatsLine', c.capacity)}</span>
+            <span class="alt-cap">${t('seatsLine', c.capacity)}${c.warning ? ', ' + escapeHtml(c.warning) : ''}</span>
           </div>
-          ${c.warning ? `<div class="alt-warn">${escapeHtml(c.warning)}</div>` : ''}
         </li>
       `).join('')}
     </ul>
